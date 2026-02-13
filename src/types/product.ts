@@ -6,6 +6,7 @@ export interface Product {
     price: number;
     original_price?: number;
     image: string;
+    images?: string[]; // Array of additional image URLs
     description: string;
     rating: number;
     reviews: number;

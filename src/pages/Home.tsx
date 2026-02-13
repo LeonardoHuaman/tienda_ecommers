@@ -1,11 +1,15 @@
 import { useState, useEffect } from "react";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, ShoppingCart, Heart } from "lucide-react";
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import { supabase } from "@/lib/supabaseClient";
+import { useCart } from "@/context/CartContext";
+import { useFavorites } from "@/context/FavoritesContext";
 import type { Product } from "@/types/product";
 
 const Home = () => {
+    const { addToCart } = useCart();
+    const { toggleFavorite, isFavorite } = useFavorites();
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -13,12 +17,18 @@ const Home = () => {
         async function fetchProducts() {
             try {
                 const { data, error } = await supabase
-                    .from('products')
-                    .select('*')
-                    .limit(6);
+                    .from("products")
+                    .select("*")
+                    .limit(6)
+                    .order('created_at', { ascending: false });
 
-                if (error) throw error;
-                if (data) setProducts(data as Product[]);
+                if (error) {
+                    throw error;
+                }
+
+                if (data) {
+                    setProducts(data as Product[]);
+                }
             } catch (error) {
                 console.error("Error fetching products:", error);
             } finally {
@@ -67,12 +77,12 @@ const Home = () => {
                             >
                                 Ver Catálogo <ArrowRight className="h-4 w-4" />
                             </Link>
-                            <Link
-                                to="/catalog"
+                            <a
+                                href="#marcas"
                                 className="border-2 border-white text-white px-10 py-4 rounded-md font-bold hover:bg-white/10 transition-all"
                             >
                                 Ver Marcas
-                            </Link>
+                            </a>
                         </div>
                     </motion.div>
                 </div>
@@ -81,7 +91,6 @@ const Home = () => {
             {/* ================= FEATURED PRODUCTS ================= */}
             <section id="productos" className="w-screen py-28 bg-background">
                 <div className="px-8 md:px-20">
-                    {/* Header */}
                     <motion.div
                         initial={{ opacity: 0, y: 20 }}
                         whileInView={{ opacity: 1, y: 0 }}
@@ -110,7 +119,6 @@ const Home = () => {
                         </Link>
                     </motion.div>
 
-                    {/* Products Grid – COMPACT DESKTOP */}
                     {loading ? (
                         <div className="flex justify-center py-20">
                             <Loader2 className="h-8 w-8 animate-spin text-accent" />
@@ -124,19 +132,40 @@ const Home = () => {
                                     whileInView={{ opacity: 1, y: 0 }}
                                     viewport={{ once: true }}
                                     transition={{ duration: 0.3, delay: index * 0.03 }}
+                                    className="h-full"
                                 >
-                                    <Link to={`/product/${product.id}`}>
-                                        <div className="group bg-white rounded-lg overflow-hidden border hover:shadow-md transition-all">
-                                            {/* Image */}
-                                            <div className="relative aspect-square overflow-hidden bg-gray-50">
+                                    <Link to={`/product/${product.id}`} className="h-full block">
+                                        <div className="group bg-white rounded-lg overflow-hidden border hover:shadow-md transition-all relative h-full flex flex-col">
+                                            <div className="relative aspect-square overflow-hidden bg-gray-50 shrink-0">
                                                 <img
                                                     src={product.image}
                                                     alt={product.name}
                                                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
                                                 />
-
-                                                {/* Badges */}
-                                                <div className="absolute top-2 left-2 flex gap-1">
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        addToCart(product);
+                                                    }}
+                                                    className="absolute bottom-2 right-2 bg-black text-white p-2 rounded-full shadow-lg translate-y-12 group-hover:translate-y-0 transition-all duration-300 hover:bg-accent z-20 focus:translate-y-0"
+                                                >
+                                                    <ShoppingCart className="h-4 w-4" />
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        toggleFavorite(product);
+                                                    }}
+                                                    className={`absolute top-2 right-2 p-2 rounded-full shadow-md transition-all duration-300 z-20 ${isFavorite(product.id)
+                                                        ? 'bg-red-500 text-white scale-110'
+                                                        : 'bg-white/80 backdrop-blur-md text-gray-600 hover:bg-white hover:text-red-500 translate-y-[-50px] group-hover:translate-y-0 focus:translate-y-0'
+                                                        }`}
+                                                >
+                                                    <Heart className={`h-3 w-3 ${isFavorite(product.id) ? 'fill-current' : ''}`} />
+                                                </button>
+                                                <div className="absolute top-2 left-2 flex gap-1 pointer-events-none">
                                                     {product.is_new && (
                                                         <span className="bg-black text-white text-[8px] font-bold px-1.5 py-0.5 rounded">
                                                             Nuevo
@@ -150,26 +179,30 @@ const Home = () => {
                                                 </div>
                                             </div>
 
+                                            <div className="p-3 flex-1 flex flex-col justify-between">
+                                                <div>
+                                                    <span className="text-[9px] text-muted-foreground uppercase block mb-1">
+                                                        {product.brand}
+                                                    </span>
 
-                                            {/* Info */}
-                                            <div className="p-3">
-                                                <span className="text-[9px] text-muted-foreground uppercase block mb-1">
-                                                    {product.brand}
-                                                </span>
+                                                    <h4 className="text-xs font-medium leading-snug line-clamp-2 mb-2">
+                                                        {product.name}
+                                                    </h4>
+                                                </div>
 
-                                                <h4 className="text-xs font-medium leading-snug line-clamp-2 mb-1">
-                                                    {product.name}
-                                                </h4>
-
-                                                {/* Price */}
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex items-center gap-2">
                                                     <span className="font-bold text-sm">
                                                         S/ {product.price.toFixed(2)}
                                                     </span>
-                                                    {product.original_price && (
-                                                        <span className="text-[10px] text-muted-foreground line-through">
-                                                            S/ {product.original_price.toFixed(2)}
-                                                        </span>
+                                                    {product.original_price && product.original_price > product.price && (
+                                                        <>
+                                                            <span className="text-[10px] text-muted-foreground line-through">
+                                                                S/ {product.original_price.toFixed(2)}
+                                                            </span>
+                                                            <span className="text-[10px] font-bold text-accent">
+                                                                -{Math.round(((product.original_price - product.price) / product.original_price) * 100)}%
+                                                            </span>
+                                                        </>
                                                     )}
                                                 </div>
                                             </div>
@@ -183,8 +216,6 @@ const Home = () => {
                             No se encontraron productos destacados.
                         </div>
                     )}
-
-
                 </div>
             </section>
 
