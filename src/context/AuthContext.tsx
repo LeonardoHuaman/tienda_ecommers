@@ -1,71 +1,99 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import type { User, Session } from '@supabase/supabase-js';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import type { User, Session } from "@supabase/supabase-js";
 
 interface AuthContextType {
     user: User | null;
     session: Session | null;
-    role: 'admin' | 'customer' | null;
+    role: "admin" | "customer" | null;
     loading: boolean;
     signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+    children,
+}) => {
     const [user, setUser] = useState<User | null>(null);
     const [session, setSession] = useState<Session | null>(null);
-    const [role, setRole] = useState<'admin' | 'customer' | null>(null);
+    const [role, setRole] = useState<"admin" | "customer" | null>(null);
     const [loading, setLoading] = useState(true);
+
+    // Helper to fetch role via REST to avoid client hanging
+    const fetchRoleViaRest = async (accessToken: string) => {
+        try {
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+            const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+            const response = await fetch(`${supabaseUrl}/rest/v1/rpc/get_user_role`, {
+                method: 'POST',
+                headers: {
+                    'apikey': supabaseKey,
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                return 'customer';
+            }
+
+            const roleName = await response.json();
+            return (roleName === 'admin' || roleName === 'customer') ? roleName : 'customer';
+        } catch (e) {
+            return 'customer';
+        }
+    };
 
     useEffect(() => {
         let mounted = true;
 
-        const initializeAuth = async () => {
-            // Fallback para evitar carga infinita
-            const timeout = setTimeout(() => {
-                if (mounted) setLoading(false);
-            }, 3000);
-
+        const init = async () => {
             try {
-                // Get initial session
-                const { data: { session }, error } = await supabase.auth.getSession();
+                // 1. Get Session
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-                if (error) console.error("Session error:", error);
+                if (sessionError) throw sessionError;
 
                 if (mounted) {
                     setSession(session);
                     setUser(session?.user ?? null);
-                    if (session?.user) {
-                        await fetchUserRole(session.user.id);
-                    } else {
-                        setLoading(false);
-                    }
                 }
-            } catch (error) {
-                console.error("Error initializing auth:", error);
-                if (mounted) setLoading(false);
+
+                // 2. Fetch Role (if user exists)
+                if (session?.user && session.access_token) {
+                    const roleName = await fetchRoleViaRest(session.access_token);
+                    if (mounted) setRole(roleName);
+                } else {
+                    if (mounted) setRole(null);
+                }
+            } catch (err) {
+                // Silent error
             } finally {
-                clearTimeout(timeout);
+                if (mounted) setLoading(false);
             }
         };
 
-        initializeAuth();
+        const {
+            data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (_event, session) => {
+            if (!mounted) return;
 
-        // Listen for auth changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-            if (mounted) {
-                setSession(session);
-                setUser(session?.user ?? null);
-                if (session?.user) {
-                    // Only fetch role if not already loaded or user changed
-                    await fetchUserRole(session.user.id);
-                } else {
-                    setRole(null);
-                    setLoading(false);
-                }
+            setSession(session);
+            setUser(session?.user ?? null);
+
+            if (session?.user && session.access_token) {
+                const roleName = await fetchRoleViaRest(session.access_token);
+                if (mounted) setRole(roleName);
+            } else {
+                if (mounted) setRole(null);
             }
+
+            if (mounted) setLoading(false);
         });
+
+        init();
 
         return () => {
             mounted = false;
@@ -73,54 +101,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
     }, []);
 
-    const fetchUserRole = async (userId: string) => {
-        try {
-            const { data, error } = await supabase
-                .from('users')
-                .select('role')
-                .eq('id', userId)
-                .single();
-
-            if (error) {
-                // Si el usuario no existe en la tabla, intentar crearlo SOLO si estamos seguros
-                if (error.code === 'PGRST116') {
-                    // Intento de recuperación: crear perfil básico
-                    const { data: userData } = await supabase.auth.getUser();
-                    if (userData.user) {
-                        // Intentamos insertar con ON CONFLICT DO NOTHING para evitar sobrescribir
-                        const { error: insertError } = await supabase
-                            .from('users')
-                            .upsert({
-                                id: userId,
-                                email: userData.user.email,
-                                full_name: userData.user.user_metadata?.full_name || '',
-                                role: 'customer' // Por defecto customer
-                            }, { onConflict: 'id', ignoreDuplicates: true }); // IMPORTANTE: Ignorar si ya existe
-
-                        if (!insertError) {
-                            // Si se insertó (o ya existía y se ignoró), asumimos customer por ahora
-                            // Pero idealmente deberíamos volver a consultar el rol real
-                            setRole('customer');
-                        }
-                    }
-                } else {
-                    console.error("Error fetching role details:", error);
-                    // Si es otro error (ej: recursión, red), NO escribir en DB, solo en memoria local
-                    setRole('customer');
-                }
-            } else {
-                setRole(data?.role as 'admin' | 'customer');
-            }
-        } catch (err) {
-            console.error('Unexpected error fetching role:', err);
-            setRole('customer'); // Fallback seguro en memoria
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const signOut = async () => {
         await supabase.auth.signOut();
+        setRole(null);
+        setUser(null);
+        setSession(null);
     };
 
     return (
@@ -132,8 +117,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
     const context = useContext(AuthContext);
-    if (context === undefined) {
-        throw new Error('useAuth must be used within an AuthProvider');
+    if (!context) {
+        throw new Error("useAuth must be used within AuthProvider");
     }
     return context;
 };

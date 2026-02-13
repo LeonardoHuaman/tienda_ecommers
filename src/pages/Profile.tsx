@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 
 const Profile = () => {
-    const { user } = useAuth();
+    const { user, role } = useAuth();
     const [fullName, setFullName] = useState('');
     const [phone, setPhone] = useState('');
     const [loading, setLoading] = useState(true);
@@ -16,7 +16,7 @@ const Profile = () => {
         if (user) {
             fetchProfile();
         }
-    }, [user]);
+    }, [user, role]);
 
     const fetchProfile = async () => {
         try {
@@ -75,19 +75,29 @@ const Profile = () => {
     }
 
     return (
-        <div className="container px-4 py-12">
+        <div className="max-w-[1440px] mx-auto px-4 md:px-8 py-12">
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="max-w-2xl mx-auto"
             >
-                <div className="mb-8">
-                    <h1 className="text-4xl font-bold mb-2">Mis Datos Personales</h1>
-                    <p className="text-muted-foreground">Actualiza tu información personal</p>
+                <div className="mb-8 flex items-center justify-between">
+                    <div>
+                        <h1 className="text-4xl font-bold mb-2">Mis Datos Personales</h1>
+                        <p className="text-muted-foreground">Actualiza tu información personal</p>
+                    </div>
+                    {role === 'admin' && (
+                        <span className="bg-black text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border border-gray-700 shadow-lg">
+                            Admin Account
+                        </span>
+                    )}
                 </div>
 
                 <div className="bg-white rounded-2xl border border-gray-100 p-8">
                     <form onSubmit={handleSave} className="space-y-6">
+
+
+
                         {message && (
                             <div className={`p-4 rounded-lg ${message.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                                 {message.text}
