@@ -64,7 +64,7 @@ const Footer = () => {
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">WhatsApp</p>
-                                    <a href="https://wa.me/51981273732" target="_blank" rel="noopener noreferrer" className="text-sm font-bold hover:text-accent transition-colors">+51 981 273 732</a>
+                                    <a href="https://wa.me/51988770738" target="_blank" rel="noopener noreferrer" className="text-sm font-bold hover:text-accent transition-colors">+51 988 770 738</a>
                                 </div>
                             </li>
                             <li className="flex gap-4">
