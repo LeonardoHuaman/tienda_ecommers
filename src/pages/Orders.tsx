@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Package, Loader2, MapPin, Star, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
@@ -36,7 +36,6 @@ const Orders = () => {
     const [orders, setOrders] = useState<Order[]>([]);
     const [userReviews, setUserReviews] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(true);
-    const [ratingProduct, setRatingProduct] = useState<{ orderId: string, productId: string } | null>(null);
 
     useEffect(() => {
         if (user) {
@@ -105,7 +104,6 @@ const Orders = () => {
             if (error) throw error;
 
             setUserReviews(prev => ({ ...prev, [productId]: rating }));
-            setRatingProduct(null);
         } catch (err) {
             console.error('Error saving review:', err);
             alert('No se pudo guardar la calificación. Asegúrate de haber recibido el producto.');
