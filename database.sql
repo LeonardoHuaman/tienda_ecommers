@@ -134,5 +134,93 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- 6. Favorites Table
+CREATE TABLE IF NOT EXISTS favorites (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_id)
+);
+
+-- Enable RLS
+ALTER TABLE favorites ENABLE ROW LEVEL SECURITY;
+
+-- RLS Policies for Favorites
+-- Users can manage their own favorites
+CREATE POLICY "Users can view their own favorites" ON favorites FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert their own favorites" ON favorites FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete their own favorites" ON favorites FOR DELETE USING (auth.uid() = user_id);
+
+-- 7. Settings Table
+CREATE TABLE IF NOT EXISTS settings (
+    key VARCHAR(100) PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Initial settings
+INSERT INTO settings (key, value) VALUES 
+('shipping_config', '{"free_shipping_threshold": 100, "shipping_cost": 5}')
+ON CONFLICT (key) DO NOTHING;
+
+-- Enable RLS
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+
+-- Everyone can view settings
+CREATE POLICY "Settings are viewable by everyone" ON settings FOR SELECT USING (true);
+-- Only admins can update settings
+CREATE POLICY "Settings are updatable by admins" ON settings FOR UPDATE USING (EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin'));
+
+-- 8. Reviews Table
+CREATE TABLE IF NOT EXISTS reviews (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES products(id) ON DELETE CASCADE,
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, product_id)
+);
+
+-- Enable RLS
+ALTER TABLE reviews ENABLE ROW LEVEL SECURITY;
+
+-- Everyone can view reviews
+CREATE POLICY "Reviews are viewable by everyone" ON reviews FOR SELECT USING (true);
+
+-- Authenticated users can insert reviews IF they have an order for that product
+CREATE POLICY "Users can review products they bought" ON reviews FOR INSERT 
+WITH CHECK (
+    auth.uid() = user_id AND 
+    EXISTS (
+        SELECT 1 FROM orders o
+        JOIN order_items oi ON o.id = oi.order_id
+        WHERE o.user_id = auth.uid() 
+        AND oi.product_id = reviews.product_id
+        AND o.status = 'delivered'
+    )
+);
+
+-- Users can delete their own reviews
+CREATE POLICY "Users can delete their own reviews" ON reviews FOR DELETE USING (auth.uid() = user_id);
+
+-- Function to update product rating and review count
+CREATE OR REPLACE FUNCTION update_product_rating()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE products
+  SET 
+    rating = (SELECT AVG(rating)::DECIMAL(3,2) FROM reviews WHERE product_id = NEW.product_id),
+    reviews = (SELECT COUNT(*) FROM reviews WHERE product_id = NEW.product_id)
+  WHERE id = NEW.product_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to run after a review is inserted
+CREATE TRIGGER on_review_created
+  AFTER INSERT OR UPDATE OR DELETE ON reviews
+  FOR EACH ROW EXECUTE FUNCTION update_product_rating();
+
 -- Helper to promote admin (Run this manually for your user)
 -- UPDATE users SET role = 'admin' WHERE email = 'tu-email@example.com';
