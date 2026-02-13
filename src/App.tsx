@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import ScrollToHash from './components/ScrollToHash';
 import { AuthProvider } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
+import { FavoritesProvider } from './context/FavoritesContext';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 const Home = lazy(() => import('./pages/Home'));
@@ -16,56 +18,62 @@ const Register = lazy(() => import('./pages/Register'));
 const Orders = lazy(() => import('./pages/Orders'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Address = lazy(() => import('./pages/Address'));
+const Favorites = lazy(() => import('./pages/Favorites'));
 
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <ScrollToHash />
-        <Layout>
-          <Suspense fallback={<div className="flex h-screen items-center justify-center">Cargando...</div>}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/catalog" element={<Catalog />} />
-              <Route path="/product/:id" element={<ProductDetail />} />
-              <Route path="/cart" element={<Cart />} />
+      <CartProvider>
+        <FavoritesProvider>
+          <Router>
+            <ScrollToHash />
+            <Layout>
+              <Suspense fallback={<div className="flex h-screen items-center justify-center">Cargando...</div>}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/catalog" element={<Catalog />} />
+                  <Route path="/product/:id" element={<ProductDetail />} />
+                  <Route path="/cart" element={<Cart />} />
+                  <Route path="/favorites" element={<Favorites />} />
 
-              {/* Protected Routes */}
-              <Route path="/checkout" element={
-                <ProtectedRoute>
-                  <Checkout />
-                </ProtectedRoute>
-              } />
-              <Route path="/orders" element={
-                <ProtectedRoute>
-                  <Orders />
-                </ProtectedRoute>
-              } />
-              <Route path="/profile" element={
-                <ProtectedRoute>
-                  <Profile />
-                </ProtectedRoute>
-              } />
-              <Route path="/address" element={
-                <ProtectedRoute>
-                  <Address />
-                </ProtectedRoute>
-              } />
-              <Route path="/admin" element={
-                <ProtectedRoute requireAdmin={true}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } />
+                  {/* Protected Routes */}
+                  <Route path="/checkout" element={
+                    <ProtectedRoute>
+                      <Checkout />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/orders" element={
+                    <ProtectedRoute>
+                      <Orders />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/profile" element={
+                    <ProtectedRoute>
+                      <Profile />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/address" element={
+                    <ProtectedRoute>
+                      <Address />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin" element={
+                    <ProtectedRoute requireAdmin={true}>
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  } />
 
-              {/* Auth Routes */}
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+                  {/* Auth Routes */}
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
 
-              <Route path="*" element={<Home />} />
-            </Routes>
-          </Suspense>
-        </Layout>
-      </Router>
+                  <Route path="*" element={<Home />} />
+                </Routes>
+              </Suspense>
+            </Layout>
+          </Router>
+        </FavoritesProvider>
+      </CartProvider>
     </AuthProvider>
   );
 }
